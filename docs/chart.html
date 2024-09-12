@@ -1,0 +1,233 @@
+<script defer="true">
+// any edits need to be made to these two variables
+// follow the format for the holdings. The ticker needs to be the Yahoo Finance ticker
+// if you run into any bugs, the codebase for the server can be found at https://github.com/demar42/uaic-porfolio-tracker
+const totalCash = 24573;
+const holdings = {
+    'body': [
+        {
+            'ticker': 'CSL.AX',
+            'quantity': 4,
+            'price': 296.835,
+            'date': '2021-08-17'
+        },
+        {
+            'ticker': 'SSG.AX',
+            'quantity': 1338,
+            'price': 1.00,
+            'date': '2021-09-24'
+        },
+        {
+            'ticker': 'SPK.NZ',
+            'quantity': 430,
+            'price': 4.49,
+            'date': '2019-10-15'
+        },
+        {
+            'ticker': 'QAN.AX',
+            'quantity': 400,
+            'price': 3.64,
+            'date': '2020-05-05'
+        },
+        {
+            'ticker': 'SGM.AX',
+            'quantity': 200,
+            'price': 6.77,
+            'date': '2020-05-05'
+        },
+        {
+            'ticker': 'CWY.AX',
+            'quantity': 622,
+            'price': 2.107,
+            'date': '2020-06-19'
+        },
+        {
+            'ticker': 'RHC.AX',
+            'quantity': 20,
+            'price': 66.68,
+            'date': '2020-06-19'
+        },
+    ]
+}
+
+
+async function main() {
+    let data = await fetch("https://uaic-portfolio-tracker.herokuapp.com/get-chart", {
+                method: "POST",
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify(holdings)
+                })
+                .then(res => res.json());
+
+    for (let i = 0; i < data.timestamps.length; i++) {
+        data.total[i] = Math.round(data.total[i]);
+        data.invested[i] = Math.round(data.invested[i]);
+    }
+
+    document.getElementById('loading').style.display = 'none';
+
+    const portfolio = data.total.slice(-1)[0]
+    const invested = data.invested.slice(-1)[0]
+    const yearsSinceInception = moment().diff(moment(data.timestamps[0]), 'years', true);
+    document.getElementById('total-invested-h1').innerHTML = '$' + portfolio.toLocaleString();
+    document.getElementById('total-cash-h1').innerHTML = '$' + (totalCash - invested).toLocaleString(); 
+    document.getElementById('total-return-h1').innerHTML = ((portfolio / invested - 1) * 100).toFixed(1) + '%';
+    document.getElementById('annual-return-h1').innerHTML = (((portfolio / invested) ** (1 / yearsSinceInception) - 1) * 100).toFixed(1) + '%';
+
+    const ctx = document.getElementById('myChart').getContext('2d');
+    const myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.timestamps,
+            datasets: [
+                {
+                    label: 'Portfolio Value',
+                    data: data.total,
+                    fill: 'origin',
+                    borderColor: '#2364ac',
+                    backgroundColor: '#2364ac44',
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBorderWidth: 2,
+                    tension: 0.2
+                },
+                {
+                    label: 'Invested Amount',
+                    data: data.invested,
+                    fill: 'rgba(130, 130, 132, 0.2)',
+                    pointHoverRadius: 5,
+                    pointRadius: 0,
+                    pointHoverBorderWidth: 2,
+                    borderDash: [3,3],
+                    borderColor: 'rgba(130, 130, 130, 1)',
+                    tension: 0
+                },
+            ]
+        },
+        options: {
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        parser: 'YYYY-MM-DD',
+                        tooltipFormat: 'D MMM YYYY',
+                        unit: 'quarter',
+                        displayFormats: {
+                            quarter: 'MMM YYYY'
+                        }
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {return '$' + this.getLabelForValue(value)},
+                    }
+                }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        usePointStyle: true,
+                    },
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {return context.dataset.label + ': $' + context.parsed.y.toLocaleString()},
+                    }
+                }
+            }
+        },
+        plugins: [{
+          afterDraw: chart => {
+            if (chart.tooltip?._active?.length) {               
+               let x = chart.tooltip._active[0].element.x;             
+               let yAxis = chart.scales.y;
+               let ctx = chart.ctx;
+               ctx.save();
+               ctx.beginPath();
+               ctx.moveTo(x, yAxis.top);
+               ctx.lineTo(x, yAxis.bottom);
+               ctx.lineWidth = 1;
+               ctx.strokeStyle = 'rgba(0, 0, 255, 0.4)';
+               ctx.stroke();
+               ctx.restore();
+            }
+          }
+        }],
+    });
+}
+
+main();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@^3"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@^2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@^1"></script>
+
+<div id="container">
+    <div id="loading">Loading data...</div>
+    <div id="chart-container">
+        <canvas id="myChart" width="400" height="400"></canvas>
+    </div>
+    <div id="tile-containers">
+        <div class="tiles">
+            <h1 id="total-invested-h1">$0</h1>
+            Current Invested Value
+        </div>
+        <div class="tiles">
+            <h1 id="total-cash-h1">$0</h1>
+            Available Cash
+        </div>
+        <div class="tiles">
+            <h1 id="total-return-h1">0%</h1>
+            Total Return since inception
+        </div>
+        <div class="tiles">
+            <h1 id="annual-return-h1">0%</h1>
+            Annual Return
+        </div>
+    </div>
+</div>
+
+<style>
+    #container {
+        width: 100%;
+        height: 500px;
+        max-height: 50vw;
+        margin: 0 auto;
+        font-family: 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+    }
+    #tile-containers {
+        display: flex;
+        justify-content: center;
+    }
+    .tiles {
+        text-align: center;
+        width: 15rem;
+        margin: 0 2rem;
+    }
+    .tiles h1 {
+        margin-bottom: 0.5rem;
+        font-size: 2.5rem;
+    }
+    #loading {
+        animation: blinker 1s linear infinite;
+        text-align: center;
+        font-size: 1.5rem;
+        position: absolute;
+        top: 25vh;
+        left: 0;
+        right: 0;
+    }
+
+    @keyframes blinker {
+        50% {
+            opacity: 0;
+        }
+    }
+</style>
